@@ -1,0 +1,50 @@
+# Systemd service file for HD Contract Agent
+#
+# Installation:
+# 1. Copy this file to /etc/systemd/system/
+#    sudo cp hd-contract-agent.service /etc/systemd/system/
+#
+# 2. Update paths and environment variables below
+#
+# 3. Enable and start the service:
+#    sudo systemctl daemon-reload
+#    sudo systemctl enable hd-contract-agent
+#    sudo systemctl start hd-contract-agent
+#
+# 4. Check status:
+#    sudo systemctl status hd-contract-agent
+#
+# 5. View logs:
+#    sudo journalctl -u hd-contract-agent -f
+
+[Unit]
+Description=HD Contract Outlook Agent
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/home/your-username/hd-contract-agent
+ExecStart=/usr/bin/python3 /home/your-username/hd-contract-agent/outlook_agent.py --loop --interval 300
+
+# Environment variables (or use EnvironmentFile)
+Environment="MS_CLIENT_ID=your-client-id"
+Environment="MS_CLIENT_SECRET=your-secret"
+Environment="MS_TENANT_ID=your-tenant-id"
+Environment="SPREADSHEET_ID=your-sheet-id"
+Environment="GOOGLE_CREDENTIALS_JSON={...}"
+
+# Or load from file:
+# EnvironmentFile=/home/your-username/hd-contract-agent/.env
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hd-contract-agent
+
+[Install]
+WantedBy=multi-user.target

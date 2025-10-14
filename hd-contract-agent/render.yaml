@@ -1,0 +1,54 @@
+services:
+  # Background Worker - Runs continuously
+  - type: worker
+    name: hd-contract-agent
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python outlook_agent.py --loop --interval 300
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MS_CLIENT_ID
+        sync: false
+      - key: MS_CLIENT_SECRET
+        sync: false
+      - key: MS_TENANT_ID
+        sync: false
+      - key: SEARCH_QUERY
+        value: 'subject:"HD contract"'
+      - key: SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
+      - key: MARK_AS_READ
+        value: true
+
+  # Alternative: Cron Job - Runs on schedule
+  # Uncomment this section and comment out the worker above if you prefer scheduled runs
+  # - type: cron
+  #   name: hd-contract-agent-cron
+  #   env: python
+  #   region: oregon
+  #   plan: starter
+  #   schedule: "*/5 * * * *"  # Every 5 minutes
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python outlook_agent.py
+  #   envVars:
+  #     - key: PYTHON_VERSION
+  #       value: 3.11.0
+  #     - key: MS_CLIENT_ID
+  #       sync: false
+  #     - key: MS_CLIENT_SECRET
+  #       sync: false
+  #     - key: MS_TENANT_ID
+  #       sync: false
+  #     - key: SEARCH_QUERY
+  #       value: 'subject:"HD contract"'
+  #     - key: SPREADSHEET_ID
+  #       sync: false
+  #     - key: GOOGLE_CREDENTIALS_JSON
+  #       sync: false
+  #     - key: MARK_AS_READ
+  #       value: true

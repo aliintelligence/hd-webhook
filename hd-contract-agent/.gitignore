@@ -1,0 +1,10 @@
+.env
+*.json
+*.pyc
+__pycache__/
+venv/
+.venv/
+*.log
+ms_token_cache.bin
+token.json
+credentials.json
