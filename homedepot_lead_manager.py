@@ -230,6 +230,7 @@ class HomeDepotLeadManager:
 
             appointment = {
                 "Id": "APPT1",
+                "OriginalApptDate": "",  # NULL for new appointments (required by HD API spec)
                 "ScheduleDate": appt_date,
                 "RescheduledFlag": "N",
                 "PreferredScheduleDate": pref_date
