@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: hd-webhook
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 zapier_webhook_simple.py
+    healthCheckPath: /health
