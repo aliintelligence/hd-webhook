@@ -32,10 +32,13 @@ Creates a lead and returns the Service Center ID.
   "city": "Miami",
   "state": "FL",
   "zip_code": "33186",
+  "store_id": "0207",
   "appointment_date": "12/01/2025",
   "appointment_time": "10:00"
 }
 ```
+
+**Required Fields**: `first_name`, `last_name`, `phone`, `address`, `city`, `state`, `zip_code`, `store_id`
 
 ### Response
 

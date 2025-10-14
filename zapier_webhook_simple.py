@@ -21,16 +21,7 @@ from datetime import datetime, timedelta
 API_KEY = "qkuDNmpbKpWghYAaceIurrv5fr2Jk3HB"
 API_SECRET = "HaPnI70Fj2Y2PEGQ"
 MVENDOR_ID = "50005308"
-STORE_ID = "0207"
 REFERRAL_ASSOCIATE = "MXA9PBV"
-
-# Initialize manager
-manager = HomeDepotLeadManager(
-    api_key=API_KEY,
-    api_secret=API_SECRET,
-    mvendor_id=MVENDOR_ID,
-    store_id=STORE_ID
-)
 
 class WebhookHandler(BaseHTTPRequestHandler):
 
@@ -63,7 +54,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     'address': '123 Main St',
                     'city': 'Miami',
                     'state': 'FL',
-                    'zip_code': '33186'
+                    'zip_code': '33186',
+                    'store_id': '0207'
                 }
             }
             self.send_json_response(response, 200)
@@ -87,7 +79,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 print(f"{'='*60}")
 
                 # Validate required fields
-                required = ['first_name', 'last_name', 'phone', 'address', 'city', 'state', 'zip_code']
+                required = ['first_name', 'last_name', 'phone', 'address', 'city', 'state', 'zip_code', 'store_id']
                 missing = [f for f in required if not data.get(f)]
 
                 if missing:
@@ -97,6 +89,17 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     }
                     self.send_json_response(response, 400)
                     return
+
+                # Get store_id from request
+                store_id = data['store_id']
+
+                # Create manager with the provided store_id
+                manager = HomeDepotLeadManager(
+                    api_key=API_KEY,
+                    api_secret=API_SECRET,
+                    mvendor_id=MVENDOR_ID,
+                    store_id=store_id
+                )
 
                 # Parse appointment
                 appointment_date = data.get('appointment_date')
@@ -168,7 +171,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         'appointment_date': appointment_str,
                         'message': 'Lead created successfully',
                         'mvendor_id': MVENDOR_ID,
-                        'store_id': STORE_ID
+                        'store_id': store_id
                     }
                     self.send_json_response(response, 200)
                     print(f"\n✓ Lead created: {lead_id}")
@@ -215,7 +218,7 @@ if __name__ == '__main__':
     print("=" * 80)
     print(f"\n✓ Server starting on http://0.0.0.0:{PORT}")
     print(f"✓ MVendor ID: {MVENDOR_ID}")
-    print(f"✓ Store ID: {STORE_ID}")
+    print(f"✓ Store ID: Dynamic (from request)")
     print(f"\nEndpoints:")
     print(f"  POST http://localhost:{PORT}/create-lead - Create lead")
     print(f"  GET  http://localhost:{PORT}/health      - Health check")
