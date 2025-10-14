@@ -22,6 +22,9 @@ API_KEY = "qkuDNmpbKpWghYAaceIurrv5fr2Jk3HB"
 API_SECRET = "HaPnI70Fj2Y2PEGQ"
 MVENDOR_ID = "50005308"
 REFERRAL_ASSOCIATE = "MXA9PBV"
+SALES_REP = "mxa9pbv"  # Sales rep to assign all leads to (user ID)
+DEPARTMENT_NUMBER = "59"  # Department number (2-digit code, 59 = Services)
+DEFAULT_APPOINTMENT_TIME = "08:00"  # Default appointment time (8:00 AM)
 
 class WebhookHandler(BaseHTTPRequestHandler):
 
@@ -103,7 +106,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
                 # Parse appointment
                 appointment_date = data.get('appointment_date')
-                appointment_time = data.get('appointment_time', '14:00')
+                appointment_time = data.get('appointment_time', DEFAULT_APPOINTMENT_TIME)
 
                 if appointment_date:
                     appointment_str = f"{appointment_date} {appointment_time}:00"
@@ -203,6 +206,25 @@ class WebhookHandler(BaseHTTPRequestHandler):
                             service_center_id = lead_id  # Fallback to order number
                             print(f"⚠ Service Center ID not available yet. Using order number as fallback.")
 
+                    # Assign sales rep to the lead (converts to consultation)
+                    print(f"\n👤 Assigning sales rep {SALES_REP} to lead...")
+                    assignment_result = manager.create_job_assignment(
+                        order_id=service_center_id,
+                        user_id=SALES_REP,
+                        contact_first_name=data['first_name'],
+                        contact_last_name=data['last_name'],
+                        assign_type="L",
+                        store_number=store_id,
+                        department_number=DEPARTMENT_NUMBER
+                    )
+
+                    if assignment_result['success']:
+                        print(f"✓ Sales rep assigned successfully!")
+                        assignment_status = "assigned"
+                    else:
+                        print(f"⚠ Sales rep assignment failed: {assignment_result.get('error')}")
+                        assignment_status = "failed"
+
                     response = {
                         'success': True,
                         'lead_id': lead_id,
@@ -211,12 +233,15 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         'customer_name': f"{data['first_name']} {data['last_name']}",
                         'appointment_date': appointment_str,
                         'message': 'Lead created successfully',
+                        'sales_rep_assigned': assignment_status,
+                        'sales_rep': SALES_REP,
                         'mvendor_id': MVENDOR_ID,
                         'store_id': store_id
                     }
                     self.send_json_response(response, 200)
                     print(f"\n✓ Lead created: {lead_id}")
-                    print(f"✓ Service Center ID: {service_center_id}\n")
+                    print(f"✓ Service Center ID: {service_center_id}")
+                    print(f"✓ Sales Rep: {SALES_REP} ({assignment_status})\n")
                 else:
                     response = {
                         'success': False,
