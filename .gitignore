@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+
+# Node modules (from old projects)
+node_modules/
+hd-water-treatment-integration/
+
+# Config files with sensitive data
+config.json
+
+# Documentation
+*.md
+!README.md
+
+# ngrok
+ngrok
+ngrok-*
