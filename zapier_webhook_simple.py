@@ -116,6 +116,47 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 cell = data.get('cell_phone', '').replace('-', '').replace('(', '').replace(')', '').replace(' ', '')
                 work = data.get('work_phone', '').replace('-', '').replace('(', '').replace(')', '').replace(' ', '')
 
+                # STEP 1: Check for existing recent leads (within 14 days)
+                print(f"\n🔍 Checking for existing leads for phone: {phone}")
+                existing_search = manager.search_recent_leads_by_phone(phone, days=14)
+
+                if existing_search.get('found_recent'):
+                    # Found existing lead within 2 weeks - return it instead of creating new
+                    service_center_id = existing_search['service_center_id']
+                    lead_data = existing_search['most_recent_lead']
+
+                    print(f"✓ Found existing recent lead: {service_center_id}")
+                    print(f"  Created: {lead_data.get('Created', 'N/A')}")
+
+                    # Parse appointment if it exists
+                    appointment_date = data.get('appointment_date')
+                    appointment_time = data.get('appointment_time', '14:00')
+                    if appointment_date:
+                        appointment_str = f"{appointment_date} {appointment_time}:00"
+                    else:
+                        appt = datetime.now() + timedelta(days=3)
+                        appointment_str = appt.strftime(f"%m/%d/%Y {appointment_time}:00")
+
+                    response = {
+                        'success': True,
+                        'lead_id': service_center_id,
+                        'order_number': service_center_id,
+                        'service_center_id': service_center_id,
+                        'customer_name': f"{data['first_name']} {data['last_name']}",
+                        'appointment_date': appointment_str,
+                        'message': 'Using existing recent lead (found within 14 days)',
+                        'existing_lead': True,
+                        'mvendor_id': MVENDOR_ID,
+                        'store_id': store_id
+                    }
+                    self.send_json_response(response, 200)
+                    print(f"\n✓ Returned existing Service Center ID: {service_center_id}")
+                    print(f"  (No new lead created - duplicate prevention)\\n")
+                    return
+
+                # STEP 2: No recent lead found - create new one
+                print(f"\n✓ No recent lead found - creating new lead")
+
                 # Create the lead
                 result = manager.create_lead(
                     first_name=data['first_name'],

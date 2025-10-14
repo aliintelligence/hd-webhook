@@ -9,10 +9,31 @@ Webhook server that creates leads in Home Depot Service Center and returns the S
 - ✅ Includes appointment scheduling
 - ✅ No external dependencies (uses Python stdlib)
 - ✅ Auto-retries for Service Center ID lookup
+- ✅ **Duplicate prevention**: Automatically checks for existing leads by phone number (within 14 days) to prevent duplicate submissions
+
+## Duplicate Prevention
+
+The webhook automatically checks for existing leads before creating new ones:
+
+- When a request comes in, it searches Home Depot's system by phone number
+- If a lead exists for that phone number within the last **14 days**, the existing Service Center ID is returned
+- If no recent lead is found, a new lead is created normally
+- This prevents duplicate leads and ensures contract continuity
+
+**Response for existing lead:**
+```json
+{
+  "success": true,
+  "service_center_id": "F54933529",
+  "customer_name": "John Doe",
+  "message": "Using existing recent lead (found within 14 days)",
+  "existing_lead": true
+}
+```
 
 ## Deployment
 
-This webhook is deployed on Railway.app
+This webhook is deployed on Render.com
 
 ## API Endpoint
 

@@ -611,6 +611,115 @@ class HomeDepotLeadManager:
                 "lead_id": lead_id
             }
 
+    def search_recent_leads_by_phone(self, phone: str, days: int = 14) -> Dict:
+        """
+        Search for recent leads by phone number
+
+        Args:
+            phone: Customer phone number (will be cleaned of formatting)
+            days: How many days back to consider "recent" (default: 14)
+
+        Returns:
+            Dict with list of matching leads
+        """
+        # Clean phone number
+        clean_phone = phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "")
+
+        print(f"Searching for recent leads by phone: {clean_phone} (last {days} days)")
+
+        payload = {
+            "SFILEADLOOKUPWS_Input": {
+                "PageSize": "50",  # Get up to 50 results
+                "ListOfSfileadbows": {
+                    "Sfileadheaderws": [
+                        {
+                            "MMSVPreferredContactPhoneNumber": clean_phone
+                        }
+                    ]
+                },
+                "StartRowNum": "0"
+            }
+        }
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/leads/lookup",
+                headers=self._get_headers(),
+                json=payload,
+                timeout=30
+            )
+
+            if not response.ok:
+                print(f"✗ API Error - Status: {response.status_code}")
+                return {
+                    "success": False,
+                    "error": f"HTTP {response.status_code}: {response.text}",
+                    "leads": []
+                }
+
+            result = response.json()
+            leads = result.get("SFILEADLOOKUPWS_Output", {}).get("ListOfSfileadbows", {}).get("Sfileadheaderws", [])
+
+            if not leads:
+                print(f"✓ No existing leads found for this phone number")
+                return {
+                    "success": True,
+                    "leads": [],
+                    "found_recent": False
+                }
+
+            # Filter for recent leads (within specified days)
+            cutoff_date = datetime.now() - timedelta(days=days)
+            recent_leads = []
+
+            for lead in leads:
+                # Try to parse the creation date
+                created_date_str = lead.get("Created")  # Or whatever field has the creation date
+                if created_date_str:
+                    try:
+                        # Try common date formats
+                        for fmt in ["%m/%d/%Y", "%Y-%m-%d", "%m/%d/%Y %H:%M:%S"]:
+                            try:
+                                created_date = datetime.strptime(created_date_str.split()[0], fmt)
+                                if created_date >= cutoff_date:
+                                    recent_leads.append(lead)
+                                break
+                            except ValueError:
+                                continue
+                    except:
+                        # If we can't parse the date, include it to be safe
+                        recent_leads.append(lead)
+
+            if recent_leads:
+                print(f"✓ Found {len(recent_leads)} recent lead(s) for this phone number")
+                # Return the most recent one
+                most_recent = recent_leads[0]
+                service_center_id = most_recent.get("Id")
+                print(f"  Most recent Service Center ID: {service_center_id}")
+
+                return {
+                    "success": True,
+                    "found_recent": True,
+                    "leads": recent_leads,
+                    "most_recent_lead": most_recent,
+                    "service_center_id": service_center_id
+                }
+            else:
+                print(f"✓ Found {len(leads)} lead(s) but none within last {days} days")
+                return {
+                    "success": True,
+                    "found_recent": False,
+                    "leads": leads
+                }
+
+        except requests.exceptions.RequestException as e:
+            print(f"✗ Error searching leads: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "leads": []
+            }
+
     def lookup_lead_by_order_number(self, order_number: str, wait_seconds: int = 30) -> Dict:
         """
         Look up lead by Order Number (ORD...) to get Service Center ID (F-number)
