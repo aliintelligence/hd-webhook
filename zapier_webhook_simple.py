@@ -10,6 +10,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import sys
 import os
+import time
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -186,24 +187,41 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 if result['success']:
                     lead_id = result['lead_id']
 
-                    # Now lookup the Service Center ID (F-number)
+                    # Now lookup the Service Center ID (F-number) using phone number
+                    # Phone lookup is more reliable and faster than order number lookup
                     print(f"\n⏳ Looking up Service Center ID for {lead_id}...")
+                    print(f"   Using phone number lookup for faster results...")
 
-                    # Try lookup with 10 second wait (balance between speed and reliability)
-                    lookup_result = manager.lookup_lead_by_order_number(lead_id, wait_seconds=10)
+                    time.sleep(5)  # Brief wait for HD to process
 
-                    if lookup_result['success']:
-                        service_center_id = lookup_result['service_center_id']
-                        print(f"✓ Service Center ID retrieved: {service_center_id}")
-                    else:
-                        # If not found yet, try once more with another 10 seconds
-                        print(f"⚠ Not found yet, trying again...")
+                    service_center_id = None
+
+                    # Search by phone number - this finds leads faster than order number
+                    phone_lookup = manager.search_recent_leads_by_phone(phone, days=1)
+
+                    if phone_lookup.get('found_recent') and phone_lookup.get('service_center_id'):
+                        service_center_id = phone_lookup['service_center_id']
+                        print(f"✓ Service Center ID found via phone lookup: {service_center_id}")
+
+                    # If phone lookup didn't find it, try again after a brief wait
+                    if not service_center_id:
+                        print(f"⚠ First phone lookup didn't find lead, waiting and retrying...")
+                        time.sleep(5)
+                        phone_lookup = manager.search_recent_leads_by_phone(phone, days=1)
+                        if phone_lookup.get('found_recent') and phone_lookup.get('service_center_id'):
+                            service_center_id = phone_lookup['service_center_id']
+                            print(f"✓ Service Center ID found on retry: {service_center_id}")
+
+                    # Fallback to order number lookup if phone didn't work
+                    if not service_center_id:
+                        print(f"⚠ Phone lookup didn't find F-number, trying order number lookup...")
                         lookup_result = manager.lookup_lead_by_order_number(lead_id, wait_seconds=10)
                         if lookup_result['success']:
                             service_center_id = lookup_result['service_center_id']
                             print(f"✓ Service Center ID retrieved: {service_center_id}")
                         else:
-                            service_center_id = lead_id  # Fallback to order number
+                            # Last resort fallback
+                            service_center_id = lead_id
                             print(f"⚠ Service Center ID not available yet. Using order number as fallback.")
 
                     # Assign sales rep to the lead (converts to consultation)
