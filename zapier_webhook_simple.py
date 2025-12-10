@@ -97,12 +97,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 # Get store_id from request
                 store_id = data['store_id']
 
-                # Create manager with the provided store_id
+                # Get referral_store from request (defaults to store_id if not provided)
+                referral_store = data.get('referral_store', store_id)
+
+                # Create manager with the provided store_id and referral_store
                 manager = HomeDepotLeadManager(
                     api_key=API_KEY,
                     api_secret=API_SECRET,
                     mvendor_id=MVENDOR_ID,
-                    store_id=store_id
+                    store_id=store_id,
+                    referral_store=referral_store
                 )
 
                 # Parse appointment
@@ -224,24 +228,23 @@ class WebhookHandler(BaseHTTPRequestHandler):
                             service_center_id = lead_id
                             print(f"⚠ Service Center ID not available yet. Using order number as fallback.")
 
-                    # Assign sales rep to the lead (converts to consultation)
-                    print(f"\n👤 Assigning sales rep {SALES_REP} to lead...")
-                    assignment_result = manager.create_job_assignment(
-                        order_id=service_center_id,
-                        user_id=SALES_REP,
-                        contact_first_name=data['first_name'],
-                        contact_last_name=data['last_name'],
-                        assign_type="L",
-                        store_number=store_id,
-                        department_number=DEPARTMENT_NUMBER
+                    # Book consultation appointment for the same day/time
+                    print(f"\n📅 Booking consultation appointment...")
+                    print(f"   Date/Time: {appointment_str}")
+                    print(f"   Referral Store: {referral_store}")
+
+                    consultation_result = manager.book_consultation(
+                        lead_id=service_center_id,
+                        schedule_date=appointment_str,
+                        store_number=referral_store
                     )
 
-                    if assignment_result['success']:
-                        print(f"✓ Sales rep assigned successfully!")
-                        assignment_status = "assigned"
+                    if consultation_result['success']:
+                        print(f"✓ Consultation booked successfully!")
+                        consultation_status = "booked"
                     else:
-                        print(f"⚠ Sales rep assignment failed: {assignment_result.get('error')}")
-                        assignment_status = "failed"
+                        print(f"⚠ Consultation booking failed: {consultation_result.get('error')}")
+                        consultation_status = "failed"
 
                     response = {
                         'success': True,
@@ -251,15 +254,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
                         'customer_name': f"{data['first_name']} {data['last_name']}",
                         'appointment_date': appointment_str,
                         'message': 'Lead created successfully',
-                        'sales_rep_assigned': assignment_status,
-                        'sales_rep': SALES_REP,
+                        'consultation_status': consultation_status,
                         'mvendor_id': MVENDOR_ID,
                         'store_id': store_id
                     }
                     self.send_json_response(response, 200)
                     print(f"\n✓ Lead created: {lead_id}")
                     print(f"✓ Service Center ID: {service_center_id}")
-                    print(f"✓ Sales Rep: {SALES_REP} ({assignment_status})\n")
+                    print(f"✓ Consultation: {consultation_status}\n")
                 else:
                     response = {
                         'success': False,

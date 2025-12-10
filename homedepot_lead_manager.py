@@ -22,7 +22,7 @@ import uuid
 class HomeDepotLeadManager:
     """Client for interacting with Home Depot IconX Lead Management API"""
 
-    def __init__(self, api_key: str, api_secret: str, mvendor_id: str, store_id: str):
+    def __init__(self, api_key: str, api_secret: str, mvendor_id: str, store_id: str, referral_store: str = None):
         """
         Initialize the Lead Manager
 
@@ -31,11 +31,13 @@ class HomeDepotLeadManager:
             api_secret: Your API secret
             mvendor_id: Your MVendor ID
             store_id: Your store ID
+            referral_store: Referral store ID (defaults to store_id if not provided)
         """
         self.api_key = api_key
         self.api_secret = api_secret
         self.mvendor_id = mvendor_id
         self.store_id = store_id
+        self.referral_store = referral_store if referral_store else store_id
         self.base_url = "https://api.hs.homedepot.com/iconx/v1"
 
         # Create Base64 encoded credentials for Basic auth
@@ -185,10 +187,10 @@ class HomeDepotLeadManager:
             "MMSVSiteState": state,
             "MMSVSitePostalCode": zip_code,
             "MMSVSiteCountry": "US",
-            "MMSVStoreNumber": int(self.store_id),
+            "MMSVStoreNumber": self.store_id,
             "SFIMVendor": int(self.mvendor_id),
             "SFIProgramGroupNameUnconstrained": program_group,
-            "SFIReferralStore": int(self.store_id),
+            "SFIReferralStore": self.referral_store,
             "SFIWorkflowOnlyStatus": workflow_status,
             "MMSVCSNeedAck": "N",
             "MMSVCSSubmitLeadFlag": "N",  # N = not ready for settlement yet
@@ -469,6 +471,129 @@ class HomeDepotLeadManager:
             print(f"✗ Error scheduling appointment: {e}")
             if hasattr(e.response, 'text'):
                 print(f"Response: {e.response.text}")
+            return {
+                "success": False,
+                "error": str(e),
+                "lead_id": lead_id
+            }
+
+    def book_consultation(
+        self,
+        lead_id: str,
+        schedule_date: str,
+        preferred_schedule_date: Optional[str] = None,
+        reschedule: bool = False,
+        original_appt_date: Optional[str] = None,
+        store_number: Optional[str] = None
+    ) -> Dict:
+        """
+        Book a consultation appointment for a lead using the official HD API format.
+        This uses the pobatch endpoint with ListOfMmSvCsServiceProviderAppointment.
+
+        Args:
+            lead_id: The F-number lead ID (e.g., "F12345678")
+            schedule_date: Appointment date/time in "MM/DD/YYYY HH:MM:SS" format
+            preferred_schedule_date: Preferred date/time (defaults to schedule_date)
+            reschedule: Set to True if rescheduling an existing appointment
+            original_appt_date: Original appointment date (required if reschedule=True)
+            store_number: Store number for referral store (e.g., "0207")
+
+        Returns:
+            API response dictionary
+        """
+        if preferred_schedule_date is None:
+            preferred_schedule_date = schedule_date
+
+        # Build appointment object per HD API spec
+        appointment = {
+            "Id": f"APPT-{lead_id}",
+            "ScheduleDate": schedule_date,
+            "RescheduledFlag": "Y" if reschedule else "N",
+            "PreferredScheduleDate": preferred_schedule_date
+        }
+
+        if reschedule and original_appt_date:
+            appointment["OriginalApptDate"] = original_appt_date
+
+        # Build the payload per HD ICONX API format
+        lead_header = {
+            "Id": lead_id,
+            "SFIMVendor": int(self.mvendor_id),
+            "SFIWorkflowOnlyStatus": "Confirmed",
+            "MMSVCSNeedAck": "N",
+            "MMSVCSSubmitLeadFlag": "Z",
+            "ListOfMmSvCsServiceProviderAppointment": {
+                "MmSvCsServiceProviderAppointment": [appointment]
+            }
+        }
+
+        # Add referral store if provided
+        if store_number:
+            lead_header["SFIReferralStore"] = store_number
+
+        payload = {
+            "SFILEADPOBATCHICONX_Input": {
+                "ListOfMmSvCsServiceProviderLeadInbound": {
+                    "MmSvCsServiceProviderLeadHeaderInbound": lead_header
+                }
+            }
+        }
+
+        print(f"Booking consultation for lead {lead_id}")
+        print(f"Schedule Date: {schedule_date}")
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/leads/pobatch",
+                headers=self._get_headers(),
+                json=payload,
+                timeout=30
+            )
+
+            response_text = response.text
+
+            if not response.ok:
+                print(f"✗ API Error - Status: {response.status_code}")
+                print(f"Response: {response_text}")
+                return {
+                    "success": False,
+                    "error": f"HTTP {response.status_code}: {response_text}"
+                }
+
+            # Parse response
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError:
+                return {
+                    "success": False,
+                    "error": "Invalid JSON response",
+                    "raw_response": response_text
+                }
+
+            # Check response - HD API returns Status/Code at top level of output
+            output = result.get("SFILEADPOBATCHICONX_Output", {})
+            status = output.get("Status", "")
+            code = output.get("Code", "")
+
+            if status == "Success" or code == "200":
+                print(f"✓ Consultation booked successfully!")
+                return {
+                    "success": True,
+                    "lead_id": lead_id,
+                    "schedule_date": schedule_date,
+                    "response": result
+                }
+            else:
+                error_msg = output.get("Error_spcMessage") or output.get("Message") or "Unknown error"
+                print(f"✗ Consultation booking failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "response": result
+                }
+
+        except requests.exceptions.RequestException as e:
+            print(f"✗ Error booking consultation: {e}")
             return {
                 "success": False,
                 "error": str(e),
@@ -928,10 +1053,12 @@ class HomeDepotLeadManager:
         assign_type: str = "L",
         store_number: Optional[str] = None,
         order_number: Optional[str] = None,
-        department_number: Optional[str] = None
+        department_number: Optional[str] = None,
+        appt_date: Optional[str] = None,
+        appt_time: Optional[str] = None
     ) -> Dict:
         """
-        Create a new job assignment for a lead or PO
+        Create a new job assignment for a lead or PO (converts lead to consultation)
 
         Args:
             order_id: The order/lead ID (externalRefNumber)
@@ -942,6 +1069,8 @@ class HomeDepotLeadManager:
             store_number: Store number (required for POs)
             order_number: Customer order number (required for POs)
             department_number: Department number
+            appt_date: Appointment date in MM/DD/YYYY format
+            appt_time: Appointment time in HH:MM format (24-hour)
 
         Returns:
             API response dictionary
@@ -966,6 +1095,10 @@ class HomeDepotLeadManager:
             payload["orderNumber"] = order_number
         if department_number:
             payload["departmentNumber"] = department_number
+        if appt_date:
+            payload["apptDate"] = appt_date
+        if appt_time:
+            payload["apptTime"] = appt_time
 
         print(f"Creating job assignment for {assign_type} {order_id}")
         print(f"Assigning to user: {user_id}")
