@@ -109,15 +109,15 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     referral_store=referral_store
                 )
 
-                # Parse appointment
-                appointment_date = data.get('appointment_date')
-                appointment_time = data.get('appointment_time', DEFAULT_APPOINTMENT_TIME)
+                # Parse appointment - use sale_date from request, current system time
+                sale_date = data.get('sale_date') or data.get('appointment_date')
+                current_time = datetime.now().strftime("%H:%M")  # Current system time
 
-                if appointment_date:
-                    appointment_str = f"{appointment_date} {appointment_time}:00"
+                if sale_date:
+                    appointment_str = f"{sale_date} {current_time}:00"
                 else:
-                    appt = datetime.now() + timedelta(days=3)
-                    appointment_str = appt.strftime(f"%m/%d/%Y {appointment_time}:00")
+                    # Default to today's date if no sale_date provided
+                    appointment_str = datetime.now().strftime(f"%m/%d/%Y {current_time}:00")
 
                 # Clean phone numbers
                 phone = data['phone'].replace('-', '').replace('(', '').replace(')', '').replace(' ', '')
@@ -136,15 +136,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     print(f"✓ Found existing recent lead: {service_center_id}")
                     print(f"  Created: {lead_data.get('Created', 'N/A')}")
 
-                    # Parse appointment if it exists
-                    appointment_date = data.get('appointment_date')
-                    appointment_time = data.get('appointment_time', '14:00')
-                    if appointment_date:
-                        appointment_str = f"{appointment_date} {appointment_time}:00"
-                    else:
-                        appt = datetime.now() + timedelta(days=3)
-                        appointment_str = appt.strftime(f"%m/%d/%Y {appointment_time}:00")
-
                     response = {
                         'success': True,
                         'lead_id': service_center_id,
@@ -159,7 +150,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     }
                     self.send_json_response(response, 200)
                     print(f"\n✓ Returned existing Service Center ID: {service_center_id}")
-                    print(f"  (No new lead created - duplicate prevention)\\n")
+                    print(f"  (No new lead created - duplicate prevention)\n")
                     return
 
                 # STEP 2: No recent lead found - create new one
